@@ -4,6 +4,8 @@ import networkx as nx
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
+from torch_geometric.utils.convert import from_networkx
+
 
 fp_gen = AllChem.GetMorganGenerator(radius=2, fpSize=1024)
 
@@ -17,6 +19,20 @@ def smiles_to_fingerprint(smiles):
         return np.array(fp)
     else:
         return np.zeros((1024,))
+
+
+class FingerprintGenerator:
+    def __init__(self, fp_size, radius):
+        self.fp_size = fp_size
+        self.fp_gen = AllChem.GetMorganGenerator(radius=radius, fpSize=fp_size)
+
+    def smiles_to_fingerprint(self, smiles):
+        mol = Chem.MolFromSmiles(smiles)
+        if mol is not None:
+             fp  = self.fp_gen.GetFingerprint(mol)
+             return np.array(fp)
+        else:
+            return np.zeros((self.fp_size,))
 
 
 def smiles_to_graph(smiles):
@@ -41,7 +57,7 @@ def smiles_to_graph(smiles):
             bond_type=bond.GetBondType(),
             bond_type_value=bond.GetBondTypeAsDouble(),
         )
-    return G
+    return from_networkx(G)
 
 
 def pIC50_to_IC50(pic50_values):

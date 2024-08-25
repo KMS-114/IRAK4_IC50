@@ -1,25 +1,105 @@
+import yaml
+
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
+from tqdm import tqdm
+import torch
+import torch.nn as nn
 from sklearn.metrics import mean_squared_error
 
-from utils import smiles_to_fingerprint, smiles_to_graph
+from torch_geometric.loader import DataLoader as GraphDataLoader
+
+from dataloader import get_loaders, define_graphs, assign_features
+from layers import Net
+from utils import pIC50_to_IC50
 
 
-COLUMNS = [
-    "Smiles", "pIC50"
-]
+def train_epoch(model: Net, loader, optimizer):
+    model.train()
+    total_loss = 0.
+    iterator = tqdm(loader, desc="Training ... ")
+    for idx, data in enumerate(iterator):
+        optimizer.zero_grad()
+        out = model(data)
+        loss = nn.functional.mse_loss(out.squeeze(), data.target.float())
+        loss.backward()
+        optimizer.step()
+
+        total_loss += loss.item()
+        iterator.set_postfix_str(f"loss={total_loss / (idx+1):.4}")
+    return total_loss / len(loader)
+
+
+@torch.no_grad()
+def test_epoch(model: Net, loader):
+    model.eval()
+    all_tr = []
+    all_pr = []
+    iterator = tqdm(loader, desc="Testing ... ")
+    for idx, data in enumerate(iterator):
+        out = model(data)
+        y_tr = pIC50_to_IC50(data.target.cpu().numpy())
+        y_pr = pIC50_to_IC50(out.squeeze().cpu().numpy())
+        all_tr.append(y_tr)
+        all_pr.append(y_pr)
+    return np.concatenate(all_tr), np.concatenate(all_pr)
 
 
 if __name__ == '__main__':
-    chembl_data = pd.read_csv('../data/train.csv')
-    df = chembl_data[COLUMNS]
-    df["fingerprint"] = df["Smiles"].apply(smiles_to_fingerprint)
+    cfg = yaml.load(open("./configs.yml", "r"), Loader=yaml.FullLoader)
 
-    graph_0 = smiles_to_graph(df.loc[0, "Smiles"])
-    df["graph"] = df["Smiles"].apply(smiles_to_graph)
+    graphs, fingerprints, targets, fields = define_graphs("train", **cfg["data"]["graph"])
+    graphs = assign_features(graphs, fingerprints, fields, targets)
+    trn_dl, tst_dl = get_loaders(graphs, **cfg["data"]["loader"])
 
-    features = np.stack(df["fingerprint"].values)
-    target = df["pIC50"].values
+    model = Net(fields=fields, **cfg["model"])
+    optimizer = torch.optim.Adam(model.parameters(), **cfg["optimizer"])
 
-    train_x, val_x, train_y, val_y = train_test_split(features, target, test_size=0.3, random_state=42)
+    best_score = np.inf
+    patience = 0
+    for epoch in range(1, cfg["trainer"]["max_epochs"]+1):
+        print(f"Epoch {epoch}")
+        train_loss = train_epoch(model, trn_dl, optimizer)
+        y_true, y_pred = test_epoch(model, tst_dl)
+
+        mse = mean_squared_error(y_true, y_pred)
+        rmse = np.sqrt(mse)
+        norm_rmse = rmse / (y_true.max() - y_true.min())
+
+        if best_score > norm_rmse:
+            best_score = norm_rmse
+            best_weights = model.state_dict()
+            patience = 0
+        else:
+            patience += 1
+
+        print(
+            f"mse={mse:.4f}, "
+            f"rmse={rmse:.4f}, "
+            f"norm_rmse={norm_rmse:.4f}, "
+            f"best_score={best_score:.4f}, "
+            f"patience={patience}"
+        )
+
+        if cfg["trainer"]["early_stop"] <= patience:
+            break
+
+    model.load_state_dict(best_weights)
+    model.eval()
+
+    graphs, fingerprints = define_graphs("test", **cfg["data"]["graph"])
+    graphs = assign_features(graphs, fingerprints, fields)
+    test_dl = GraphDataLoader(graphs, batch_size=cfg["data"]["loader"]["test_batch_size"], shuffle=False)
+
+    with torch.no_grad():
+        all_pr = []
+        iterator = tqdm(test_dl, desc="Testing ... ")
+        for idx, data in enumerate(iterator):
+            out = model(data)
+            y_pr = pIC50_to_IC50(out.squeeze(-1).cpu().numpy())
+            all_pr.append(y_pr)
+        y_pred = np.concatenate(all_pr)
+
+    submission = pd.read_csv("../data/sample_submission.csv")
+    submission["IC50_nM"] = y_pred
+    submission.to_csv("../data/submission.csv", index=False)

@@ -1,0 +1,30 @@
+data:
+  graph:
+    data_source: ../data
+    field_keys:
+      - labels
+      - atomic_num
+      - formal_charge
+      - chiral_tag
+      - hybridization
+      - num_explicit_hs
+      - is_aromatic
+    fingerprint_dims: 512 # should be same with model's fingerprint_dims & num_layers
+    radius: 6             # might be same with model's num_layers
+  loader:
+    train_batch_size: 64
+    test_batch_size: 4
+
+model:
+  node_emb_dims: 32
+  hidden_dims: 32
+  fingerprint_dims: 512 # should be same with data's fingerprint_dims & radius
+  num_layers: 6         # might be same with model's radius
+
+optimizer:
+  lr: !!float 1e-4
+  weight_decay: !!float 5e-6
+
+trainer:
+  max_epochs: 100
+  early_stop: 10

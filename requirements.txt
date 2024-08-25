@@ -3,3 +3,5 @@ pandas
 rdkit
 scikit-learn
 networkx
+torch
+torch_geometric
