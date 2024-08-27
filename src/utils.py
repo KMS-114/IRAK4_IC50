@@ -57,7 +57,14 @@ def smiles_to_graph(smiles):
             bond_type=bond.GetBondType(),
             bond_type_value=bond.GetBondTypeAsDouble(),
         )
+
+    # TODO: assign subgraph fingerprints
+    
     return from_networkx(G)
+
+
+def graph_to(graph: nx.Graph):
+    mol = Chem.RWMol()
 
 
 def pIC50_to_IC50(pic50_values):

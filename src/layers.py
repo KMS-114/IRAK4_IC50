@@ -47,10 +47,6 @@ class  Net(nn.Module):
         self.projector = FieldAwareFactorizationMachine(field_dims=field_dims, embed_dim=node_emb_dims)
         self.fp_linear = nn.Linear(fingerprint_dims, hidden_dims)
 
-        # self.conv1 = GCNConv(node_emb_dims, 32)
-        # self.conv2 = GCNConv(32, 32)
-        # self.conv3 = GCNConv(32, 32)
-
         self.convs = nn.ModuleList([
             GCNConv(node_emb_dims, hidden_dims),
             *[GCNConv(hidden_dims, hidden_dims) for i in range(num_layers-1)]
@@ -64,10 +60,6 @@ class  Net(nn.Module):
 
         x0 = [self.projector(data[i]) for i in range(bs)]
         x = torch.cat(x0, dim=0)
-
-        # x = self.conv1(x0, data.edge_index).relu()
-        # x = self.conv2(x, data.edge_index).relu()
-        # x = self.conv3(x, data.edge_index).relu()
 
         for conv in self.convs:
             x = conv(x, data.edge_index).relu()

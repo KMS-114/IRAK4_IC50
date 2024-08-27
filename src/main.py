@@ -14,14 +14,14 @@ from layers import Net
 from utils import pIC50_to_IC50
 
 
-def train_epoch(model: Net, loader, optimizer):
+def train_epoch(model: Net, loader, optimizer, loss_fn):
     model.train()
     total_loss = 0.
     iterator = tqdm(loader, desc="Training ... ")
     for idx, data in enumerate(iterator):
         optimizer.zero_grad()
         out = model(data)
-        loss = nn.functional.mse_loss(out.squeeze(), data.target.float())
+        loss = loss_fn(out.squeeze(-1), data.target.float())
         loss.backward()
         optimizer.step()
 
@@ -37,9 +37,9 @@ def test_epoch(model: Net, loader):
     all_pr = []
     iterator = tqdm(loader, desc="Testing ... ")
     for idx, data in enumerate(iterator):
-        out = model(data)
-        y_tr = pIC50_to_IC50(data.target.cpu().numpy())
-        y_pr = pIC50_to_IC50(out.squeeze().cpu().numpy())
+        y_tr = data.target.cpu().numpy()
+        y_pr = model(data).squeeze(-1).cpu().numpy()
+
         all_tr.append(y_tr)
         all_pr.append(y_pr)
     return np.concatenate(all_tr), np.concatenate(all_pr)
@@ -54,31 +54,41 @@ if __name__ == '__main__':
 
     model = Net(fields=fields, **cfg["model"])
     optimizer = torch.optim.Adam(model.parameters(), **cfg["optimizer"])
+    loss_fn = nn.MSELoss()
 
-    best_score = np.inf
+    best_score = -np.inf
     patience = 0
     for epoch in range(1, cfg["trainer"]["max_epochs"]+1):
         print(f"Epoch {epoch}")
-        train_loss = train_epoch(model, trn_dl, optimizer)
+        train_loss = train_epoch(model, trn_dl, optimizer, loss_fn)
         y_true, y_pred = test_epoch(model, tst_dl)
 
+        correct_ratio = np.mean(np.abs(y_true - y_pred) <= 0.5)
+
+        y_true = pIC50_to_IC50(y_true)
+        y_pred = pIC50_to_IC50(y_pred)
         mse = mean_squared_error(y_true, y_pred)
         rmse = np.sqrt(mse)
         norm_rmse = rmse / (y_true.max() - y_true.min())
 
-        if best_score > norm_rmse:
-            best_score = norm_rmse
+        score = (0.5 * min(1.-norm_rmse, 1.)) + (0.5 * correct_ratio)
+
+        if best_score < score:
+            best_score = score
             best_weights = model.state_dict()
             patience = 0
         else:
             patience += 1
 
         print(
-            f"mse={mse:.4f}, "
-            f"rmse={rmse:.4f}, "
+            "\n###\n"
             f"norm_rmse={norm_rmse:.4f}, "
+            f"min(1.-norm_rmse, 1)={min(1.-norm_rmse, 1.):.4f}, "
+            f"correct_ratio={correct_ratio:.4f}, "
+            f"score={score:.4f}, "
             f"best_score={best_score:.4f}, "
             f"patience={patience}"
+            "\n###\n"
         )
 
         if cfg["trainer"]["early_stop"] <= patience:
