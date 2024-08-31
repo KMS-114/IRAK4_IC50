@@ -37,7 +37,7 @@ def define_graphs(split, data_source, field_keys, fingerprint_dims, radius):
     fingerprints = np.stack(df["fingerprint"].values)
 
     # Get graph datasets from SMILES codes
-    graphs = df["Smiles"].apply(smiles_to_graph).values
+    graphs = df["Smiles"].apply(smiles_to_graph, args=(fp_gen, )).values
 
     if split == "train":
         target = df["pIC50"].values

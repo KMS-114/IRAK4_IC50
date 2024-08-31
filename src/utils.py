@@ -35,7 +35,7 @@ class FingerprintGenerator:
             return np.zeros((self.fp_size,))
 
 
-def smiles_to_graph(smiles):
+def smiles_to_graph(smiles, fp_gen: FingerprintGenerator):
     mol = Chem.MolFromSmiles(smiles)
 
     G = nx.Graph()
@@ -58,13 +58,30 @@ def smiles_to_graph(smiles):
             bond_type_value=bond.GetBondTypeAsDouble(),
         )
 
-    # TODO: assign subgraph fingerprints
-    
+    # assign subgraph fingerprints
+    sub_fps = {}
+    for node in G.nodes():
+        mol = Chem.RWMol()
+        node_symbol = G.nodes("labels")[node]
+        mol.AddAtom(Chem.Atom(node_symbol))
+
+        for idx, neighbor in enumerate(G.neighbors(node)):
+            neighbor_symbol = G.nodes("labels")[neighbor]
+            mol.AddAtom(Chem.Atom(neighbor_symbol))
+            mol.AddBond(0, idx+1, order=G.edges[node, neighbor]["bond_type"])
+
+        sub_smiles = Chem.MolToSmiles(mol)
+        sub_mol = Chem.MolFromSmiles(sub_smiles)
+        if sub_mol is not None:
+            fp = fp_gen.fp_gen.GetFingerprint(sub_mol)
+            fp = np.array(fp)
+        else:
+            fp = np.zeros((fp_gen.fp_size, ))
+
+        sub_fps[node] = {"sub_fp": fp}
+
+    nx.set_node_attributes(G, sub_fps)
     return from_networkx(G)
-
-
-def graph_to(graph: nx.Graph):
-    mol = Chem.RWMol()
 
 
 def pIC50_to_IC50(pic50_values):

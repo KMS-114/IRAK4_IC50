@@ -45,6 +45,14 @@ def test_epoch(model: Net, loader):
     return np.concatenate(all_tr), np.concatenate(all_pr)
 
 
+class LogCoshLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, y_pred, y_true):
+        return torch.log(torch.cosh(y_pred - y_true)).mean()
+
+
 if __name__ == '__main__':
     cfg = yaml.load(open("./configs.yml", "r"), Loader=yaml.FullLoader)
 
@@ -54,7 +62,8 @@ if __name__ == '__main__':
 
     model = Net(fields=fields, **cfg["model"])
     optimizer = torch.optim.Adam(model.parameters(), **cfg["optimizer"])
-    loss_fn = nn.MSELoss()
+    # loss_fn = nn.MSELoss()
+    loss_fn = LogCoshLoss()
 
     best_score = -np.inf
     patience = 0

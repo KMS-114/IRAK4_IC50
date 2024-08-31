@@ -51,24 +51,34 @@ class  Net(nn.Module):
             GCNConv(node_emb_dims, hidden_dims),
             *[GCNConv(hidden_dims, hidden_dims) for i in range(num_layers-1)]
         ])
+        self.sub_fp_convs = nn.ModuleList([
+            GCNConv(fingerprint_dims, hidden_dims),
+            *[GCNConv(hidden_dims, hidden_dims) for i in range(num_layers-1)]
+        ])
 
-        self.lin1 = nn.Linear(hidden_dims*2, hidden_dims//2)
+        self.lin1 = nn.Linear(hidden_dims*3, hidden_dims//2)
         self.lin2 = nn.Linear(hidden_dims//2, 1)
     
     def forward(self, data):
         bs = data.batch.max()+1
 
         x0 = [self.projector(data[i]) for i in range(bs)]
-        x = torch.cat(x0, dim=0)
+        x_cat = torch.cat(x0, dim=0)
+        x_fp = np.vstack([data[i]["sub_fp"] for i in range(bs)])
+        x_fp = torch.from_numpy(x_fp).to(torch.float32)
 
         for conv in self.convs:
-            x = conv(x, data.edge_index).relu()
+            x_cat = conv(x_cat, data.edge_index).relu()
+        for conv in self.sub_fp_convs:
+            x_fp = conv(x_fp, data.edge_index).relu()
 
-        x = scatter(src=x, index=data.batch, dim=0)
+        x_cat = scatter(src=x_cat, index=data.batch, dim=0)
+        x_fp = scatter(src=x_fp, index=data.batch, dim=0)
 
         fp_emb = torch.from_numpy(np.stack(data.fingerprint)).to(dtype=torch.float32)
         fp_emb = self.fp_linear(fp_emb)
-        x = torch.cat([fp_emb, x], dim=-1)
+
+        x = torch.cat([fp_emb, x_cat, x_fp], dim=-1)
 
         x = nn.functional.dropout(x, p=0.5, training=self.training)
         x = self.lin1(x).relu()
