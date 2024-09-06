@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+import torch_geometric.nn as gnn
 from torch_geometric.nn import GCNConv
 from torch_geometric.utils import scatter
 
@@ -48,12 +49,12 @@ class  Net(nn.Module):
         self.fp_linear = nn.Linear(fingerprint_dims, hidden_dims)
 
         self.convs = nn.ModuleList([
-            GCNConv(node_emb_dims, hidden_dims),
-            *[GCNConv(hidden_dims, hidden_dims) for i in range(num_layers-1)]
+            gnn.GATConv(node_emb_dims, hidden_dims),
+            *[gnn.GATConv(hidden_dims, hidden_dims) for i in range(num_layers-1)]
         ])
         self.sub_fp_convs = nn.ModuleList([
-            GCNConv(fingerprint_dims, hidden_dims),
-            *[GCNConv(hidden_dims, hidden_dims) for i in range(num_layers-1)]
+            gnn.GATConv(fingerprint_dims, hidden_dims),
+            *[gnn.GATConv(hidden_dims, hidden_dims) for i in range(num_layers-1)]
         ])
 
         self.lin1 = nn.Linear(hidden_dims*3, hidden_dims//2)

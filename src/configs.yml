@@ -10,7 +10,7 @@ data:
       - num_explicit_hs
       - is_aromatic
     fingerprint_dims: 128 # should be same with model's fingerprint_dims & num_layers
-    radius: 6             # might be same with model's num_layers
+    radius: 3             # might be same with model's num_layers
   loader:
     train_batch_size: 128
     test_batch_size: 128
@@ -19,11 +19,11 @@ model:
   node_emb_dims: 32
   hidden_dims: 32
   fingerprint_dims: 128 # should be same with data's fingerprint_dims & radius
-  num_layers: 6         # might be same with model's radius
+  num_layers: 3         # might be same with model's radius
 
 optimizer:
   lr: !!float 1e-4
-  weight_decay: !!float 5e-6
+  weight_decay: !!float 1e-5
 
 trainer:
   max_epochs: 100

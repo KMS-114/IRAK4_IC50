@@ -7,11 +7,15 @@ import torch
 import torch.nn as nn
 from sklearn.metrics import mean_squared_error
 
+from rdkit import RDLogger
 from torch_geometric.loader import DataLoader as GraphDataLoader
 
 from dataloader import get_loaders, define_graphs, assign_features
 from layers import Net
 from utils import pIC50_to_IC50
+
+
+RDLogger.DisableLog('rdApp.*')
 
 
 def train_epoch(model: Net, loader, optimizer, loss_fn):
@@ -90,6 +94,8 @@ if __name__ == '__main__':
             patience += 1
 
         print(
+            "\n###\n"
+            f"train_loss={train_loss:.4f}"
             "\n###\n"
             f"norm_rmse={norm_rmse:.4f}, "
             f"min(1.-norm_rmse, 1)={min(1.-norm_rmse, 1.):.4f}, "
