@@ -9,16 +9,16 @@ data:
       - hybridization
       - num_explicit_hs
       - is_aromatic
-    fingerprint_dims: 128 # should be same with model's fingerprint_dims & num_layers
+    fingerprint_dims: 64 # should be same with model's fingerprint_dims & num_layers
     radius: 3             # might be same with model's num_layers
   loader:
-    train_batch_size: 128
-    test_batch_size: 128
+    train_batch_size: 1024
+    test_batch_size: 1024
 
 model:
   node_emb_dims: 32
   hidden_dims: 32
-  fingerprint_dims: 128 # should be same with data's fingerprint_dims & radius
+  fingerprint_dims: 64 # should be same with data's fingerprint_dims & radius
   num_layers: 3         # might be same with model's radius
 
 optimizer:
@@ -26,5 +26,5 @@ optimizer:
   weight_decay: !!float 1e-5
 
 trainer:
-  max_epochs: 100
-  early_stop: 20
+  max_epochs: 500
+  early_stop: 100

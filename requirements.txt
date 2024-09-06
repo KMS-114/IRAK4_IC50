@@ -5,12 +5,12 @@ scikit-learn
 networkx
 PyYAML
 
-torch
+# torch
 torch_geometric
 
 --extra-index-url https://data.pyg.org/whl/torch-2.1.0+cu118.html
-pyg_lib
+# pyg_lib
 torch_scatter
-torch_sparse
-torch_cluster
-torch_spline_conv
+# torch_sparse
+# torch_cluster
+# torch_spline_conv

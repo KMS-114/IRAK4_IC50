@@ -18,11 +18,12 @@ from utils import pIC50_to_IC50
 RDLogger.DisableLog('rdApp.*')
 
 
-def train_epoch(model: Net, loader, optimizer, loss_fn):
+def train_epoch(model: Net, loader, device, optimizer, loss_fn):
     model.train()
     total_loss = 0.
     iterator = tqdm(loader, desc="Training ... ")
     for idx, data in enumerate(iterator):
+        data = data.to(device)
         optimizer.zero_grad()
         out = model(data)
         loss = loss_fn(out.squeeze(-1), data.target.float())
@@ -35,14 +36,15 @@ def train_epoch(model: Net, loader, optimizer, loss_fn):
 
 
 @torch.no_grad()
-def test_epoch(model: Net, loader):
+def test_epoch(model: Net, loader, device):
     model.eval()
     all_tr = []
     all_pr = []
     iterator = tqdm(loader, desc="Testing ... ")
     for idx, data in enumerate(iterator):
-        y_tr = data.target.cpu().numpy()
+        data = data.to(device)
         y_pr = model(data).squeeze(-1).cpu().numpy()
+        y_tr = data.target.cpu().numpy()
 
         all_tr.append(y_tr)
         all_pr.append(y_pr)
@@ -58,13 +60,14 @@ class LogCoshLoss(nn.Module):
 
 
 if __name__ == '__main__':
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     cfg = yaml.load(open("./configs.yml", "r"), Loader=yaml.FullLoader)
 
     graphs, fingerprints, targets, fields = define_graphs("train", **cfg["data"]["graph"])
     graphs = assign_features(graphs, fingerprints, fields, targets)
     trn_dl, tst_dl = get_loaders(graphs, **cfg["data"]["loader"])
 
-    model = Net(fields=fields, **cfg["model"])
+    model = Net(fields=fields, **cfg["model"]).to(device)
     optimizer = torch.optim.Adam(model.parameters(), **cfg["optimizer"])
     # loss_fn = nn.MSELoss()
     loss_fn = LogCoshLoss()
@@ -73,8 +76,8 @@ if __name__ == '__main__':
     patience = 0
     for epoch in range(1, cfg["trainer"]["max_epochs"]+1):
         print(f"Epoch {epoch}")
-        train_loss = train_epoch(model, trn_dl, optimizer, loss_fn)
-        y_true, y_pred = test_epoch(model, tst_dl)
+        train_loss = train_epoch(model, trn_dl, device, optimizer, loss_fn)
+        y_true, y_pred = test_epoch(model, tst_dl, device)
 
         correct_ratio = np.mean(np.abs(y_true - y_pred) <= 0.5)
 
@@ -120,6 +123,7 @@ if __name__ == '__main__':
         all_pr = []
         iterator = tqdm(test_dl, desc="Testing ... ")
         for idx, data in enumerate(iterator):
+            data = data.to(device)
             out = model(data)
             y_pr = pIC50_to_IC50(out.squeeze(-1).cpu().numpy())
             all_pr.append(y_pr)
